@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: upstream-update
@@ -34,6 +35,8 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Bump .upstream-ref when changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           current="$(cat .upstream-ref)"
           latest="${{ steps.upstream.outputs.sha }}"
@@ -49,3 +52,7 @@ jobs:
           git add .upstream-ref
           git commit -m "Update spotweb to ${latest}"
           git push
+          # A push made with GITHUB_TOKEN does not trigger other workflows, so
+          # dispatch the build explicitly. workflow_dispatch is allowed to run
+          # even when triggered with GITHUB_TOKEN.
+          gh workflow run build.yml --ref main

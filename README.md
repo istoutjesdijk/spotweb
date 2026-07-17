@@ -119,15 +119,19 @@ A `/config` volume is mounted for persistence. If it contains `dbsettings.inc.ph
 
 ## Repository setup (maintainer)
 
-One-time settings in the GitHub repository:
+Images publish to GHCR out of the box using the built-in `GITHUB_TOKEN`; no secret is required.
+Set the `spotweb` package visibility to public in the package settings if you want
+unauthenticated pulls.
 
-- Settings → Secrets and variables → Actions:
-  - Variable `DOCKERHUB_USERNAME` — your Docker Hub username.
-  - Secret `DOCKERHUB_TOKEN` — a Docker Hub access token with write access.
-- Settings → Actions → General → Workflow permissions: Read and write (needed for the
-  `.upstream-ref` bump commit and the failure issue).
-- GitHub Container Registry access is handled by the built-in `GITHUB_TOKEN`; no extra secret is
-  needed. Set the `spotweb` package visibility to public if you want unauthenticated pulls.
+To also publish to Docker Hub (optional), add under Settings → Secrets and variables → Actions:
+
+- Variable `DOCKERHUB_USERNAME` — your Docker Hub username.
+- Secret `DOCKERHUB_TOKEN` — a Docker Hub access token with write access.
+
+Without these, the build still succeeds and publishes to GHCR only.
+
+The workflows request the permissions they need at the job level, so the repository-wide
+Actions "Workflow permissions" setting does not need to be changed from its default.
 
 ## Updating and rollback
 
