@@ -1,0 +1,45 @@
+# Coolify deployment for Spotweb.
+#
+# This stack contains only the Spotweb application. Create a separate
+# Coolify-managed MariaDB database resource (which gives you Coolify's automated
+# backups and restarts) and point the SPOTWEB_DB_* variables below at it.
+#
+# Steps in Coolify:
+#   1. Add a new Resource -> Database -> MariaDB. Note its host, database name,
+#      user and password.
+#   2. Add a new Resource -> Docker Compose and paste this file.
+#   3. In the resource's Environment Variables, set SPOTWEB_DB_HOST,
+#      SPOTWEB_DB_NAME, SPOTWEB_DB_USER and SPOTWEB_DB_PASS to the values from
+#      step 1. SERVICE_FQDN_SPOTWEB_8080 makes Coolify assign a domain and
+#      proxy HTTPS to port 8080 automatically.
+#   4. Deploy. The container becomes healthy once nginx is serving; open the
+#      assigned domain to finish setup (see README).
+services:
+  spotweb:
+    image: ghcr.io/istoutjesdijk/spotweb:latest
+    restart: unless-stopped
+    environment:
+      # Coolify assigns a domain and reverse-proxies HTTPS to container port 8080.
+      - SERVICE_FQDN_SPOTWEB_8080
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Connection to the Coolify-managed MariaDB resource.
+      - SPOTWEB_DB_TYPE=pdo_mysql
+      - SPOTWEB_DB_HOST=${SPOTWEB_DB_HOST}
+      - SPOTWEB_DB_PORT=${SPOTWEB_DB_PORT:-3306}
+      - SPOTWEB_DB_NAME=${SPOTWEB_DB_NAME}
+      - SPOTWEB_DB_USER=${SPOTWEB_DB_USER}
+      - SPOTWEB_DB_PASS=${SPOTWEB_DB_PASS}
+      - SPOTWEB_CRON_RETRIEVE=${SPOTWEB_CRON_RETRIEVE:-*/15 * * * *}
+    expose:
+      - "8080"
+    volumes:
+      - spotweb-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  spotweb-config:

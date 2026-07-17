@@ -1,0 +1,51 @@
+name: upstream-update
+
+# Checks the upstream Spotweb develop branch once a day. When its HEAD commit
+# differs from the pinned commit in .upstream-ref, it commits the new commit id.
+# That push triggers the build workflow, which builds, tests and publishes a new
+# image. When nothing changed, nothing happens, so there is no needless rebuild.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-update
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve upstream develop HEAD
+        id: upstream
+        run: |
+          sha="$(git ls-remote https://github.com/spotweb/spotweb.git refs/heads/develop | cut -f1)"
+          if [ -z "$sha" ]; then
+            echo "Could not resolve upstream develop ref" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Bump .upstream-ref when changed
+        run: |
+          current="$(cat .upstream-ref)"
+          latest="${{ steps.upstream.outputs.sha }}"
+          echo "pinned:  $current"
+          echo "upstream: $latest"
+          if [ "$current" = "$latest" ]; then
+            echo "Already up to date; nothing to do."
+            exit 0
+          fi
+          echo "$latest" > .upstream-ref
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .upstream-ref
+          git commit -m "Update spotweb to ${latest}"
+          git push

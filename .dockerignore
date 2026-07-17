@@ -1,0 +1,10 @@
+.git
+.github
+deploy
+test
+docs
+*.md
+LICENSE
+.env
+.env.*
+.upstream-ref
