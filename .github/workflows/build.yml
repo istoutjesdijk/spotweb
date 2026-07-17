@@ -114,6 +114,14 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          # Publish a plain multi-arch index (amd64 + arm64) with no build
+          # attestations. Buildx adds provenance/SBOM manifests as extra
+          # "unknown/unknown" entries in the image index by default, and
+          # "docker compose pull" (as used by Coolify) chokes on them with
+          # "content digest ... not found". Disabling them keeps the image
+          # pullable everywhere.
+          provenance: false
+          sbom: false
           build-args: |
             SPOTWEB_REF=${{ steps.ref.outputs.full }}
           tags: ${{ steps.meta.outputs.tags }}
