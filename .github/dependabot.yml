@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: ci
 
@@ -12,7 +12,7 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: build
     # Pinned to the PHP 8.5 line: patch releases within 8.5 are still picked up,
