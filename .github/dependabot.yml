@@ -15,3 +15,12 @@ updates:
       interval: weekly
     commit-message:
       prefix: build
+    # Pinned to the PHP 8.5 line: patch releases within 8.5 are still picked up,
+    # but do not jump to 8.6 or a new major automatically. Upstream Spotweb has
+    # no CI covering new PHP versions, so moving off 8.5 is a deliberate manual
+    # step (bump the FROM line and relax this ignore).
+    ignore:
+      - dependency-name: "php"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
