@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM php:8.3-fpm-alpine
+FROM php:8.5-fpm-alpine
 
 # Upstream Spotweb commit to build. CI overrides this with the value in
 # .upstream-ref, so images are reproducible and only change when upstream does.
