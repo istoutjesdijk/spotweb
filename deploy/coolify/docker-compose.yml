@@ -17,6 +17,10 @@
 services:
   spotweb:
     image: ghcr.io/istoutjesdijk/spotweb:latest
+    # The tag is a moving target, so a redeploy has to fetch it again. Without
+    # this Docker reuses the copy of :latest it already has and a redeploy can
+    # silently keep running an old image.
+    pull_policy: always
     restart: unless-stopped
     environment:
       # Coolify assigns a domain and reverse-proxies HTTPS to container port 8080.
