@@ -22,6 +22,12 @@ services:
       # Coolify assigns a domain and reverse-proxies HTTPS to container port 8080.
       - SERVICE_FQDN_SPOTWEB_8080
       - TZ=${TZ:-Europe/Amsterdam}
+      # Set to true when TLS is terminated further out than Coolify's proxy, so
+      # the container is reached over plain http while the browser is on https
+      # (a Cloudflare Tunnel in front of an http:// domain, for example).
+      # Without it Spotweb generates http:// URLs and the browser blocks them
+      # as mixed content.
+      - SPOTWEB_FORCE_HTTPS=${SPOTWEB_FORCE_HTTPS:-false}
       # Connection to the Coolify-managed MariaDB resource.
       - SPOTWEB_DB_TYPE=pdo_mysql
       - SPOTWEB_DB_HOST=${SPOTWEB_DB_HOST}

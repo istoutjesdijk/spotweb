@@ -19,6 +19,23 @@ if [ -n "${TZ:-}" ]; then
     printf 'date.timezone=%s\n' "$TZ" > /usr/local/etc/php/conf.d/timezone.ini
 fi
 
+# --- Reverse proxy scheme ---------------------------------------------------
+# Spotweb derives every absolute URL, including the <base href> of each page,
+# from the scheme the proxy reports in X-Forwarded-Proto. Some setups terminate
+# TLS in front of a proxy that then forwards plain http and overwrites that
+# header: a Cloudflare Tunnel in front of Coolify with an http:// domain, for
+# example. The browser is on https but receives http asset URLs, which it
+# blocks as mixed content. Setting SPOTWEB_FORCE_HTTPS pins the scheme to https.
+case "${SPOTWEB_FORCE_HTTPS:-}" in
+    1 | true | TRUE | yes | on)
+        log "Forcing https in generated URLs"
+        cat > /etc/nginx/forwarded-proto.conf <<'EOF'
+map $http_x_forwarded_proto $spotweb_proto { default https; }
+map $spotweb_proto $spotweb_https { default on; }
+EOF
+        ;;
+esac
+
 # --- Database settings ------------------------------------------------------
 # A file mounted at /config takes precedence; otherwise generate one from the
 # SPOTWEB_DB_* environment variables. If neither is present, Spotweb falls back

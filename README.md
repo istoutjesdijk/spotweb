@@ -107,9 +107,22 @@ This sets it back to `spotweb`.
 | `SPOTWEB_DB_PASS` | — | Database password. |
 | `SPOTWEB_CRON_RETRIEVE` | `*/15 * * * *` | Cron schedule for retrieving spots. Empty disables it. |
 | `SPOTWEB_CRON_CACHE_CHECK` | `0 4 * * *` | Cron schedule for the cache check. Empty disables it. |
+| `SPOTWEB_FORCE_HTTPS` | `false` | Generate `https://` URLs regardless of what the proxy reports. See below. |
 
 A `/config` volume is mounted for persistence. If it contains `dbsettings.inc.php` or
 `ownsettings.php`, those files take precedence over the environment variables.
+
+## Behind a reverse proxy
+
+Spotweb builds absolute URLs from the scheme the proxy reports in `X-Forwarded-Proto`,
+including the `<base href>` on every page. A proxy that sets that header correctly needs no
+configuration here.
+
+Set `SPOTWEB_FORCE_HTTPS=true` when TLS is terminated further out than the proxy that talks to
+the container, so it forwards `X-Forwarded-Proto: http` while the browser is on https. A
+Cloudflare Tunnel in front of a Coolify `http://` domain does exactly that: Traefik replaces the
+header the tunnel sent, Spotweb emits `http://` asset URLs, and the browser blocks them as mixed
+content. Forcing the scheme fixes it without changing the proxy chain.
 
 ## Data and backups
 
