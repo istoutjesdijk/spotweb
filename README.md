@@ -23,21 +23,38 @@ Tags:
 
 ## How it stays up to date
 
+Work lands on `develop`, which is the default branch. `main` only ever holds commits whose image
+has been built, tested and published, and it is the branch Coolify deploys.
+
 - `upstream-update` runs daily. It compares the upstream `develop` HEAD against the commit
-  pinned in `.upstream-ref`. If they differ, it writes the new commit id and pushes it.
-- That push triggers `build`, which builds the image, runs a smoke test, and — only if the test
-  passes — publishes the new image to both registries.
+  pinned in `.upstream-ref`. If they differ, it commits the new commit id to `develop`.
+- A push to `develop` starts `build`, which builds the image, runs a smoke test, and — only if
+  the test passes — publishes the new image to both registries. It then fast-forwards `main` to
+  the same commit.
+- Builds run one at a time, so `latest` always matches the commit `main` points at.
 - If a build fails, the workflow run is marked failed. GitHub emails the repository owner, and
-  the workflow also opens (or comments on) a `ci-failure` issue. Nothing is published on failure,
-  so `latest` keeps pointing at the last working image.
-- Dependabot keeps the workflow actions and the Alpine base image current with weekly pull
-  requests.
+  the workflow also opens (or comments on) a `ci-failure` issue. Nothing is published and `main`
+  does not move, so `latest` and the deployment keep running the last working image.
+- Dependabot keeps the workflow actions and the Alpine base image current with monthly pull
+  requests against `develop`.
+
+GitHub does not let the workflow's own token push changes to files under `.github/workflows/`,
+not even as a fast-forward. A commit that changes a workflow therefore builds and publishes as
+usual, but the "Promote to main" step fails. Move `main` by hand once the build is green:
+
+```sh
+git push origin develop:main
+```
+
+Never commit to `main` directly. A commit there deploys without having been built or tested, and
+the next promotion fails because `main` is no longer behind `develop`.
 
 On the deployment side, updates are pulled in one of two ways:
 
 - Standalone with Watchtower: Watchtower polls the registry and pulls + restarts Spotweb when a
   new image appears.
-- Coolify: redeploy the resource, or wire the publish step to a Coolify deploy webhook (see below).
+- Coolify: auto-deploy on the `main` branch. The push that moves `main` arrives after the image
+  is published, so the redeploy picks up the new `latest`.
 
 ## Standalone deployment (Synology NAS, plain Docker)
 
@@ -73,9 +90,10 @@ Health check: the image exposes `/healthz`, served directly by nginx, and the co
 declares a matching `healthcheck`. Coolify uses it to mark the resource healthy once the web
 server is up, independent of database state.
 
-Optional auto-deploy: create a deploy webhook for the resource in Coolify and add it as a
-repository secret named `COOLIFY_WEBHOOK`; you can then extend the publish job to call it after a
-push.
+Auto-deploy: point the resource at the `main` branch with auto-deploy on. Coolify then redeploys
+whenever `build` promotes a tested commit to `main`, which happens only after its image is
+published. Do not point it at `develop`: that branch moves before the image exists, so Coolify
+would pull the previous `latest`.
 
 ## First run
 
