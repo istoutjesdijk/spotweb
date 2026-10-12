@@ -1,15 +1,22 @@
 name: build
 
+# Work lands on develop. A green build there publishes the image and only then
+# fast-forwards main to the same commit. Coolify deploys main, so it never sees
+# a commit before its image exists and never sees a commit that failed the
+# smoke test.
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
-    branches: [main]
+    branches: [develop]
   workflow_dispatch:
 
+# Builds of one branch run one after another instead of side by side, so an
+# older build can never finish last and leave :latest behind the commit that
+# main points at. Superseded pull request builds are still cancelled.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
@@ -48,13 +55,16 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     env:
       DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history, so main can be fast-forwarded from this checkout.
+          fetch-depth: 0
 
       - name: Read pinned upstream ref
         id: ref
@@ -129,6 +139,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The image is published, so main may now point at this commit; that push
+      # is what makes Coolify deploy. Fast-forward only: if main has commits
+      # develop lacks, this fails rather than overwrite them.
+      #
+      # GitHub refuses a GITHUB_TOKEN push that changes files under
+      # .github/workflows/, even as a fast-forward. When develop carries such a
+      # change, this step fails and main has to be moved by hand:
+      #   git push origin develop:main
+      - name: Promote to main
+        if: github.ref == 'refs/heads/develop'
+        run: git push origin "${GITHUB_SHA}:refs/heads/main"
+
   notify-failure:
     needs: [build-test, publish]
     if: failure() && github.event_name != 'pull_request'
@@ -140,7 +162,7 @@ jobs:
         with:
           script: |
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = `The build workflow failed for commit ${context.sha}.\n\nRun: ${runUrl}`;
+            const body = `The build workflow failed for commit ${context.sha}.\n\nRun: ${runUrl}\n\nIf only the "Promote to main" step failed, the image is published but main was not moved. That happens when the commit changes workflow files; run \`git push origin develop:main\` to deploy it.`;
             const existing = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,

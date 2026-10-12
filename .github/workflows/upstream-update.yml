@@ -1,9 +1,11 @@
 name: upstream-update
 
 # Checks the upstream Spotweb develop branch once a day. When its HEAD commit
-# differs from the pinned commit in .upstream-ref, it commits the new commit id.
-# That push triggers the build workflow, which builds, tests and publishes a new
-# image. When nothing changed, nothing happens, so there is no needless rebuild.
+# differs from the pinned commit in .upstream-ref, it commits the new commit id
+# to develop (the default branch, which scheduled runs check out) and starts the
+# build workflow, which builds, tests and publishes a new image and then moves
+# main along. When nothing changed, nothing happens, so there is no needless
+# rebuild.
 
 on:
   schedule:
@@ -55,4 +57,4 @@ jobs:
           # A push made with GITHUB_TOKEN does not trigger other workflows, so
           # dispatch the build explicitly. workflow_dispatch is allowed to run
           # even when triggered with GITHUB_TOKEN.
-          gh workflow run build.yml --ref main
+          gh workflow run build.yml --ref develop
