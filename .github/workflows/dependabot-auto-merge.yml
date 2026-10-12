@@ -48,7 +48,7 @@ jobs:
               # dispatch a publish explicitly (the trick upstream-update.yml uses)
               # to build and push a fresh image on the new base.
               echo "Dispatching build to republish the image."
-              gh workflow run build.yml --ref main
+              gh workflow run build.yml --ref develop
               ;;
             *)
               # Workflow-file changes (action bumps) cannot be merged by the
@@ -59,8 +59,10 @@ jobs:
                 echo "PR #$PR already flagged for manual merge; nothing to do."
               else
                 echo "Flagging PR #$PR for manual merge."
-                gh pr comment "$PR" --repo "$REPO" --body "$marker
-Build passed. This PR changes workflow files, which the \`GITHUB_TOKEN\` is not allowed to merge, so it needs a manual merge: press Merge, or run \`gh pr merge $PR --squash --delete-branch\`."
+                # Every line of a run: block must stay indented, or the whole
+                # workflow file stops being valid YAML; printf adds the newline.
+                note="Build passed. This PR changes workflow files, which the \`GITHUB_TOKEN\` is not allowed to merge, so it needs a manual merge: press Merge, or run \`gh pr merge $PR --squash --delete-branch\`."
+                gh pr comment "$PR" --repo "$REPO" --body "$(printf '%s\n%s' "$marker" "$note")"
               fi
               ;;
           esac
