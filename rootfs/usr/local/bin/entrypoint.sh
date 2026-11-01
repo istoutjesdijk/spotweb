@@ -68,38 +68,6 @@ if [ -f "$CONFIG_DIR/ownsettings.php" ]; then
     cp "$CONFIG_DIR/ownsettings.php" "$SPOTWEB_HOME/ownsettings.php"
 fi
 
-# --- Fallback newsservers ---------------------------------------------------
-# Extra NNTP servers with a priority, used when the server from Spotweb's own
-# settings is down or misses an article (see README). A file mounted at /config
-# takes precedence over the SPOTWEB_NNTP_FALLBACK_<n>_* environment variables.
-# Written outside the web root, readable by www-data only.
-NNTP_FALLBACK_FILE=/etc/spotweb/nntp-fallback.json
-install -d -m 0755 /etc/spotweb
-rm -f "$NNTP_FALLBACK_FILE"
-if [ -f "$CONFIG_DIR/nntp-fallback.json" ]; then
-    log "Using nntp-fallback.json from $CONFIG_DIR"
-    cp "$CONFIG_DIR/nntp-fallback.json" "$NNTP_FALLBACK_FILE"
-else
-    nntp_fallback_json="$(php /usr/local/lib/spotweb/nntp-fallback-config.php)"
-    if [ -n "$nntp_fallback_json" ]; then
-        log "Generating nntp-fallback.json from environment"
-        printf '%s\n' "$nntp_fallback_json" > "$NNTP_FALLBACK_FILE"
-    fi
-    unset nntp_fallback_json
-fi
-if [ -f "$NNTP_FALLBACK_FILE" ]; then
-    chown root:www-data "$NNTP_FALLBACK_FILE"
-    chmod 0640 "$NNTP_FALLBACK_FILE"
-    php -r '
-        $c = json_decode(file_get_contents($argv[1]), true);
-        if (!is_array($c)) { fwrite(STDERR, "[entrypoint] nntp-fallback.json is not valid JSON; fallback servers disabled\n"); exit(0); }
-        foreach (($c["servers"] ?? []) as $s) {
-            $roles = is_array($s["roles"] ?? null) ? implode(",", $s["roles"]) : ($s["roles"] ?? "hdr,bin");
-            printf("[entrypoint]   fallback %s, priority %d, roles %s\n", $s["host"] ?? "?", $s["priority"] ?? 1, $roles);
-        }
-    ' "$NNTP_FALLBACK_FILE"
-fi
-
 [ -f "$SPOTWEB_HOME/dbsettings.inc.php" ] && \
     chown www-data:www-data "$SPOTWEB_HOME/dbsettings.inc.php"
 [ -f "$SPOTWEB_HOME/ownsettings.php" ] && \
