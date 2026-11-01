@@ -11,6 +11,10 @@ ENV SPOTWEB_HOME=/var/www/spotweb \
 
 WORKDIR /var/www/spotweb
 
+# Local changes on top of upstream (see patches/). A patch that no longer
+# applies fails the build, so a conflicting upstream update is never published.
+COPY patches/ /tmp/patches/
+
 RUN set -eux; \
     apk add --no-cache \
         nginx \
@@ -49,6 +53,9 @@ RUN set -eux; \
     git -C "$SPOTWEB_HOME" remote add origin https://github.com/spotweb/spotweb.git; \
     git -C "$SPOTWEB_HOME" fetch -q --depth 1 origin "$SPOTWEB_REF"; \
     git -C "$SPOTWEB_HOME" checkout -q FETCH_HEAD; \
+    for p in /tmp/patches/*.patch; do \
+        git -C "$SPOTWEB_HOME" apply --verbose "$p"; \
+    done; \
     rm -rf "$SPOTWEB_HOME/.git"; \
     install -d -o www-data -g www-data \
         /config \

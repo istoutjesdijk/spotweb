@@ -1,0 +1,54 @@
+diff --git a/lib/services/Nntp/Services_Nntp_ClientPool.php b/lib/services/Nntp/Services_Nntp_ClientPool.php
+index c054697..b206bbf 100644
+--- a/lib/services/Nntp/Services_Nntp_ClientPool.php
++++ b/lib/services/Nntp/Services_Nntp_ClientPool.php
+@@ -2,6 +2,7 @@
+ 
+ require_once __DIR__.'/Services_Nntp_PipelineDepth.php';
+ require_once __DIR__.'/Services_Nntp_PipelinedTransport.php';
++require_once __DIR__.'/Services_Nntp_FailoverTransport.php';
+ 
+ class Services_Nntp_ClientPool
+ {
+@@ -22,11 +23,11 @@ class Services_Nntp_ClientPool
+ 
+         switch ($role) {
+             case 'hdr':
+-                self::$_instances[$role] = new Services_Nntp_PipelinedTransport(
++                self::$_instances[$role] = Services_Nntp_FailoverTransport::wrap(new Services_Nntp_PipelinedTransport(
+                     self::normalizeServer($settings_nntp_hdr),
+                     Services_Nntp_PipelinedTransport::DEFAULT_TIMEOUT,
+                     'hdr'
+-                );
++                ), self::normalizeServer($settings_nntp_hdr), 'hdr');
+                 break;
+ 
+             case 'bin':
+@@ -34,11 +35,11 @@ class Services_Nntp_ClientPool
+                 if (empty($settings_nntp_bin['host'])) {
+                     self::$_instances[$role] = self::pool($settings, 'hdr');
+                 } else {
+-                    self::$_instances[$role] = new Services_Nntp_PipelinedTransport(
++                    self::$_instances[$role] = Services_Nntp_FailoverTransport::wrap(new Services_Nntp_PipelinedTransport(
+                         self::normalizeServer($settings_nntp_bin, true),
+                         Services_Nntp_PipelinedTransport::DEFAULT_TIMEOUT,
+                         'bin'
+-                    );
++                    ), self::normalizeServer($settings_nntp_bin, true), 'bin');
+                 }
+                 break;
+ 
+@@ -47,11 +48,11 @@ class Services_Nntp_ClientPool
+                 if (empty($settings_nntp_post['host'])) {
+                     self::$_instances[$role] = self::pool($settings, 'hdr');
+                 } else {
+-                    self::$_instances[$role] = new Services_Nntp_PipelinedTransport(
++                    self::$_instances[$role] = Services_Nntp_FailoverTransport::wrap(new Services_Nntp_PipelinedTransport(
+                         self::normalizeServer($settings_nntp_post, true),
+                         Services_Nntp_PipelinedTransport::DEFAULT_TIMEOUT,
+                         'post'
+-                    );
++                    ), self::normalizeServer($settings_nntp_post, true), 'post');
+                 }
+                 break;
+ 

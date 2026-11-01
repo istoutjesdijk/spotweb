@@ -126,6 +126,8 @@ This sets it back to `spotweb`.
 | `SPOTWEB_CRON_RETRIEVE` | `*/15 * * * *` | Cron schedule for retrieving spots. Empty disables it. |
 | `SPOTWEB_CRON_CACHE_CHECK` | `0 4 * * *` | Cron schedule for the cache check. Empty disables it. |
 | `SPOTWEB_FORCE_HTTPS` | `false` | Generate `https://` URLs regardless of what the proxy reports. See below. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_*` | — | Fallback newsservers. See below. |
+| `SPOTWEB_NNTP_PRIMARY_PRIORITY` | `0` | Priority of the newsserver from Spotweb's own settings. |
 
 A `/config` volume is mounted for persistence. If it contains `dbsettings.inc.php` or
 `ownsettings.php`, those files take precedence over the environment variables.
@@ -142,6 +144,62 @@ Cloudflare Tunnel in front of a Coolify `http://` domain does exactly that: Trae
 header the tunnel sent, Spotweb emits `http://` asset URLs, and the browser blocks them as mixed
 content. Forcing the scheme fixes it without changing the proxy chain.
 
+## Fallback newsservers
+
+Spotweb itself takes one newsserver per role: headers, NZBs and images, and posting. This image
+adds fallback servers with a priority, along the lines of SABnzbd. Spotweb tries them when the
+server from its settings is down or misses an article.
+
+- Priority 0 is highest. The server from Spotweb's settings has priority 0, unless
+  `SPOTWEB_NNTP_PRIMARY_PRIORITY` says otherwise. A fallback defaults to priority 1. Servers with
+  the same priority are tried in the order they are configured.
+- Article fetches by message-id (NZBs, images, full spots, comments) go down the list per
+  article. A server that answers 430 "no such article" or fails passes the article on to the next
+  one. Spotweb reports an article as missing only when every server misses it, so a block
+  account fills the gaps of a provider with short retention.
+- A server that cannot be connected to is skipped for a while: 10 minutes for a timeout or bad
+  credentials, 3 minutes otherwise.
+- Header retrieval works with article numbers, and those differ per server. Each run therefore
+  uses the first server that accepts the newsgroup and stays on it. Spotweb resyncs by
+  message-id when the next run is on a different server. That needs no intervention, but the
+  first run after a switch takes longer.
+- Posting only moves to the next server when connecting or logging in fails. A post that breaks
+  off halfway is never retried elsewhere, so nothing gets posted twice. That is why fallbacks
+  leave out the `post` role by default.
+
+Configure fallbacks with numbered environment variables (`1`, `2`, ...):
+
+| Variable | Default | Description |
+|---|---|---|
+| `SPOTWEB_NNTP_FALLBACK_<n>_HOST` | — | Hostname. Required; an empty value disables the entry. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_PORT` | `563` with `ssl`/`tls`, else `119` | Port. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_USER` / `_PASS` | — | Credentials. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_ENC` | — | `ssl` or `tls` (implicit TLS), `starttls`, or empty. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_VERIFYNAME` | `true` | Verify the certificate and hostname. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_PRIORITY` | `1` | 0–99, 0 is highest. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_ROLES` | `hdr,bin` | Any of `hdr` (headers, spots, comments), `bin` (NZBs, images), `post`. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_ENABLE` | `true` | Set to `false` to keep an entry without using it. |
+| `SPOTWEB_NNTP_FALLBACK_<n>_NAME` | `fallback-<n>` | Label in the logs. |
+
+The compose files pass through slots 1 and 2. If you need more, or prefer a file, put
+`nntp-fallback.json` in the `/config` volume. When that file exists, the environment variables are
+ignored:
+
+```json
+{
+  "primary_priority": 0,
+  "servers": [
+    { "name": "block", "host": "news.example.com", "port": 563, "enc": "ssl",
+      "user": "me", "pass": "secret", "priority": 1, "roles": ["hdr", "bin"] }
+  ]
+}
+```
+
+The entrypoint writes the result to `/etc/spotweb/nntp-fallback.json`, outside the web root and
+readable only by root and www-data, and lists each fallback in the container log at startup.
+Every failover is logged as `[nntp-failover]` in the retrieve output. Without fallbacks, Spotweb
+behaves exactly as upstream.
+
 ## Data and backups
 
 - Standalone: back up the `spotweb-db` volume (the database holds all spots, comments and
@@ -149,6 +207,11 @@ content. Forcing the scheme fixes it without changing the proxy chain.
 - Coolify: use the managed database resource's backup feature.
 
 ## Repository setup (maintainer)
+
+The image carries local changes on top of upstream: new files under `rootfs/var/www/spotweb/` and
+patches in `patches/`, applied at build time. If an upstream update stops a patch from applying,
+the build fails and nothing is published. Regenerate the patch against the new `.upstream-ref`
+commit (`git diff` in a checkout of that commit) and push it to `develop`.
 
 Images publish to GHCR out of the box using the built-in `GITHUB_TOKEN`; no secret is required.
 Set the `spotweb` package visibility to public in the package settings if you want
@@ -174,12 +237,16 @@ Actions "Workflow permissions" setting does not need to be changed from its defa
 ## Local build and test
 
 ```sh
-docker build -t spotweb:test .
+docker build --build-arg SPOTWEB_REF="$(cat .upstream-ref)" -t spotweb:test .
 SPOTWEB_IMAGE=spotweb:test ./test/smoke.sh
 ```
 
+Pass `SPOTWEB_REF` the way CI does: the patches in `patches/` are made against that commit.
+
 The smoke test boots the standalone stack, waits for the container to become healthy, and checks
-`/healthz`, the main page and a clean schema bootstrap.
+`/healthz`, the main page and a clean schema bootstrap. It then runs `test/nntp-fallback.sh`,
+which tests the fallback newsservers against fake NNTP servers inside the image. That needs no
+Usenet account.
 
 ## Credits
 

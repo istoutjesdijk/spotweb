@@ -13,6 +13,9 @@ COMPOSE_FILE="deploy/standalone/docker-compose.yml"
 export SPOTWEB_IMAGE="${SPOTWEB_IMAGE:-spotweb:test}"
 export MYSQL_PASSWORD="smoketest"
 export SPOTWEB_PORT="8081"
+# Exercises the entrypoint's fallback config; the host is never contacted.
+export SPOTWEB_NNTP_FALLBACK_1_HOST="news.example.invalid"
+export SPOTWEB_NNTP_FALLBACK_1_PASS='smoke"pa$$'
 
 cleanup() {
     echo "--- spotweb logs ---"
@@ -53,5 +56,13 @@ if docker compose -f "$COMPOSE_FILE" logs spotweb | grep -qiE 'SpotWeb crashed|P
     echo "Found a fatal error in the logs"
     exit 1
 fi
+
+echo "Verifying the fallback newsserver config was generated"
+docker compose -f "$COMPOSE_FILE" exec -T spotweb sh -c '
+    test "$(stat -c "%U:%G %a" /etc/spotweb/nntp-fallback.json)" = "root:www-data 640" &&
+    su-exec www-data php -r "exit(json_decode(file_get_contents(\"/etc/spotweb/nntp-fallback.json\"), true)[\"servers\"][0][\"host\"] === \"news.example.invalid\" ? 0 : 1);"
+' || { echo "nntp-fallback.json missing or wrong"; exit 1; }
+
+./test/nntp-fallback.sh
 
 echo "Smoke test passed"
